@@ -293,11 +293,11 @@ TEST(correctness, inplace_ctors) {
   variant<bool, std::string> x2(in_place_index<0>, "asdasd");
   ASSERT_TRUE(x2.index() == 0 && get<0>(x2));
 
-  std::variant<std::string, std::vector<int>, char> var{in_place_index<1>, {1, 2, 3, 4, 5}};
+  variant<std::string, std::vector<int>, char> var{in_place_index<1>, std::vector<int>{1, 2, 3, 4, 5}};
   auto other = std::vector<int>{1, 2, 3, 4, 5};
   ASSERT_EQ(get<1>(var), other);
   auto other2 = std::vector<int>(4, 42);
-  std::variant<std::string, std::vector<int>, char> var2{in_place_index<1>, 4, 42};
+  variant<std::string, std::vector<int>, char> var2{in_place_index<1>, 4, 42};
   ASSERT_EQ(get<1>(var2), other2);
 }
 
