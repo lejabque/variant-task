@@ -326,7 +326,7 @@ static_assert(get_if_test_basic(), "Bad get_if behavior");
 TEST(correctness, multiple_same_types) {
   variant<int, const int, int const, volatile int const> v;
   v.emplace<int>(4);
-  ASSERT_TRUE(std::holds_alternative<int>(v));
+  ASSERT_TRUE(holds_alternative<int>(v));
   ASSERT_TRUE(v.index() == 0);
   ASSERT_TRUE(get_if<int>(&v));
   ASSERT_TRUE(get_if<0>(&v));
@@ -425,6 +425,6 @@ TEST(swap, different_alternatives) {
   ASSERT_TRUE(holds_alternative<std::string>(a));
   ASSERT_TRUE(holds_alternative<dummy_t>(b));
   ASSERT_TRUE(holds_alternative<int>(c));
-  ASSERT_EQ(std::get<std::string>(a), "kek");
-  ASSERT_EQ(std::get<int>(c), 42);
+  ASSERT_EQ(get<std::string>(a), "kek");
+  ASSERT_EQ(get<int>(c), 42);
 }
