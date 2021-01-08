@@ -266,12 +266,27 @@ TEST(correctness, value_move_ctor) {
   simple_value_move_ctor();
   variant<int, coin_wrapper> x(yac_coin{});
   ASSERT_TRUE(x.index() == 0);
+}
 
+TEST(correctness, alternative_selection) {
+  {
+    variant<char, std::optional<char16_t>> v = u'\u2043';
+    ASSERT_EQ(v.index(), 1);
+  }
+  {
+    double d = 3.14;
+    variant<int, std::reference_wrapper<double>> y = d;
+    ASSERT_EQ(y.index(), 1);
+  }
   // For brave and truth
   {
     // See NB in #4 https://en.cppreference.com/w/cpp/utility/variant/variant
     variant<bool, std::string> v("asdasd");
-    ASSERT_TRUE(v.index() == 1); // Overload resolution is not your friend anymore
+    ASSERT_EQ(v.index(), 1); // Overload resolution is not your friend anymore
+  }
+  {
+    variant<long, double, float> v = 0;
+    ASSERT_EQ(v.index(), 0);
   }
 }
 
