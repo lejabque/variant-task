@@ -288,6 +288,75 @@ TEST(correctness, alternative_selection) {
     variant<long, double, float> v = 0;
     ASSERT_EQ(v.index(), 0);
   }
+  {
+    variant<std::vector<int>, bool, std::string> a(true);
+    ASSERT_EQ(a.index(), 1);
+  }
+}
+
+TEST(correctness, valueless_by_exception) {
+  using V = variant<std::vector<int>, throwing_move_operator_t>;
+  auto v1 = std::vector{1, 2, 3};
+  V v = v1;
+  ASSERT_ANY_THROW({
+    V tmp(in_place_index<1>);
+    v = std::move(tmp);
+  });
+  ASSERT_TRUE(v.valueless_by_exception());
+  auto v2 = std::vector{4, 5, 6};
+  V w = v2;
+  ASSERT_FALSE(w.valueless_by_exception());
+  ASSERT_EQ(get<std::vector<int>>(w), v2);
+  w.swap(v);
+  ASSERT_TRUE(w.valueless_by_exception());
+  ASSERT_FALSE(v.valueless_by_exception());
+  ASSERT_EQ(get<0>(v), v2);
+  w.swap(v);
+  ASSERT_TRUE(v.valueless_by_exception());
+  ASSERT_FALSE(w.valueless_by_exception());
+  ASSERT_EQ(get<0>(w), v2);
+}
+
+TEST(correctness, assign) {
+  struct bruh_conversion {
+    bruh_conversion(int) { throw std::exception(); }
+  };
+  std::string s = "here comes some std::string";
+  variant<std::string, bruh_conversion> v = s;
+  ASSERT_ANY_THROW(v = 42);
+  ASSERT_EQ(get<0>(v), s);
+}
+
+TEST(correctness, visit) {
+  using V = variant<int, long, double>;
+  V v1 = 42;
+  V v2 = 1337L;
+  V v3 = 0.5;
+  bool was_called = false;
+  visit([&](int i, long l, double d){
+    ASSERT_EQ(i, 42);
+    ASSERT_EQ(l, 1337L);
+    ASSERT_EQ(d, 0.5);
+    was_called = true;
+  }, v1, v2, v3);
+  ASSERT_TRUE(was_called);
+}
+
+TEST(correctness, emplace) {
+  using V = variant<std::vector<int>, std::string>;
+  std::string s = "A fairly long string that will cause an allocation";
+  std::vector<int> t = {1, 2, 3};
+  V v = s;
+  ASSERT_EQ(v.index(), 1);
+  v.emplace<0>(t);
+  ASSERT_EQ(v.index(), 0);
+  ASSERT_EQ(get<0>(v), t);
+  v.emplace<std::string>(s);
+  ASSERT_EQ(v.index(), 1);
+  ASSERT_EQ(get<1>(v), s);
+  v.emplace<0>(t);
+  ASSERT_EQ(v.index(), 0);
+  ASSERT_EQ(get<0>(v), t);
 }
 
 constexpr bool in_place_ctor() {
