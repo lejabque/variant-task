@@ -151,3 +151,11 @@ struct coin_wrapper {
 private:
   int coin{1};
 };
+
+struct sqr_sum_visitor {
+  template <typename ... Args>
+  constexpr long operator()(Args ... args) const noexcept {
+    return ((args * args) + ...);
+  }
+};
+

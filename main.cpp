@@ -205,6 +205,13 @@ static_assert(simple_copy_ctor_test(), "Basic constexpr copy-constructor failed"
 
 TEST(correctness, copy_ctor1) { ASSERT_TRUE(simple_copy_ctor_test()); }
 
+TEST(correcntess, copy_constructor_without_default) {
+  variant<no_default_t, non_trivial_copy_t> orig(in_place_index<1>, 123);
+  variant<no_default_t, non_trivial_copy_t> copy(orig);
+  ASSERT_EQ(orig.index(), copy.index());
+  ASSERT_EQ(get<1>(orig).x + 1, get<non_trivial_copy_t>(copy).x);
+}
+
 constexpr bool direct_init_copy_ctor() {
   variant<no_copy_assignment_t> x;
   variant<no_copy_assignment_t> other{x};
@@ -468,6 +475,22 @@ TEST(visits, visit_overload) {
   };
   ASSERT_TRUE(visit(visitor, v));
 }
+
+constexpr bool test_visit() {
+  using V = variant<int, short, long>;
+  V a1(1);
+  V b1(2);
+  V c1(3);
+  bool res1 = (visit(sqr_sum_visitor{}, a1, b1, c1) == 14);
+
+  V a2(in_place_index<0>, 2);
+  V b2(in_place_index<1>, 2);
+  V c2(in_place_index<2>, 2);
+  bool res2 = (visit(sqr_sum_visitor{}, a2, b2, c2) == 12);
+  return res1 && res2;
+}
+
+static_assert(test_visit(), "Visit is not constexpr");
 
 TEST(swap, valueless) {
   throwing_move_operator_t::swap_called = 0;
