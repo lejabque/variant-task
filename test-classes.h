@@ -61,6 +61,28 @@ struct non_trivial_int_wrapper_t {
     x = i + 1;
     return *this;
   }
+  friend constexpr bool operator==(non_trivial_int_wrapper_t const &lhs,
+                                   non_trivial_int_wrapper_t const &rhs) noexcept {
+    return lhs.x == rhs.x;
+  }
+  friend constexpr bool operator!=(non_trivial_int_wrapper_t const &lhs,
+                                   non_trivial_int_wrapper_t const &rhs) noexcept {
+    return lhs.x != rhs.x;
+  }
+  friend constexpr bool operator<(non_trivial_int_wrapper_t const &lhs, non_trivial_int_wrapper_t const &rhs) noexcept {
+    return lhs.x < rhs.x;
+  }
+  friend constexpr bool operator<=(non_trivial_int_wrapper_t const &lhs,
+                                   non_trivial_int_wrapper_t const &rhs) noexcept {
+    return lhs.x <= rhs.x;
+  }
+  friend constexpr bool operator>(non_trivial_int_wrapper_t const &lhs, non_trivial_int_wrapper_t const &rhs) noexcept {
+    return lhs.x > rhs.x;
+  }
+  friend constexpr bool operator>=(non_trivial_int_wrapper_t const &lhs,
+                                   non_trivial_int_wrapper_t const &rhs) noexcept {
+    return lhs.x >= rhs.x;
+  }
   int x;
 };
 
@@ -159,3 +181,51 @@ struct sqr_sum_visitor {
   }
 };
 
+struct strange_visitor {
+  strange_visitor() = default;
+  strange_visitor(strange_visitor const&) = delete;
+  strange_visitor(strange_visitor&&) = default;
+
+  constexpr int operator()(int value) & {
+    return value;
+  }
+  constexpr int operator()(int value) && {
+    return value + 1;
+  }
+  constexpr int operator()(int value) const & {
+    return value + 2;
+  }
+  constexpr int operator()(int value) const && {
+    return value + 3;
+  }
+};
+
+struct broken_address {
+  broken_address() : x(123){};
+  broken_address(broken_address const &other) : x(other.x){};
+  broken_address(broken_address &&other) : x(other.x){};
+  broken_address &operator=(broken_address const &other) {
+    x = other.x;
+    return *this;
+  };
+  broken_address &operator=(broken_address &&other) {
+    x = other.x;
+    return *this;
+  };
+
+  broken_address *operator&() { return nullptr; }
+  broken_address const *operator&() const { return nullptr; }
+  int x;
+};
+
+struct empty_comparable {
+  empty_comparable() = default;
+  empty_comparable(empty_comparable &&) { throw std::exception(); }
+  empty_comparable &operator=(empty_comparable &&) { throw std::exception(); }
+  bool operator==(const empty_comparable &) const { throw std::exception(); }
+  bool operator!=(const empty_comparable &) const { throw std::exception(); }
+  bool operator<(const empty_comparable &) const { throw std::exception(); }
+  bool operator<=(const empty_comparable &) const { throw std::exception(); }
+  bool operator>(const empty_comparable &) const { throw std::exception(); }
+  bool operator>=(const empty_comparable &) const { throw std::exception(); }
+};

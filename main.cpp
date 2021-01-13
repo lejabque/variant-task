@@ -2,6 +2,7 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <utility>
 
 #include "variant.h"
 #include "gtest/gtest.h"
@@ -105,6 +106,7 @@ TEST(traits, copy_assignment) {
   using variant3 = variant<dummy_t, int, non_trivial_copy_assignment_t>;
   using variant4 = variant<double, non_trivial_copy_t, bool>;
   using variant5 = variant<int, short, char, dummy_t, bool>;
+  using variant6 = variant<int, double, no_copy_t>;
   ASSERT_FALSE(std::is_copy_assignable_v<variant1>);
   ASSERT_FALSE(std::is_copy_assignable_v<variant2>);
   ASSERT_TRUE(std::is_copy_assignable_v<variant3>);
@@ -113,6 +115,7 @@ TEST(traits, copy_assignment) {
   ASSERT_FALSE(std::is_trivially_copy_assignable_v<variant3>);
   ASSERT_FALSE(std::is_trivially_copy_assignable_v<variant4>);
   ASSERT_TRUE(std::is_trivially_copy_assignable_v<variant5>);
+  ASSERT_FALSE(std::is_copy_assignable_v<variant6>);
 }
 
 TEST(traits, move_assignment) {
@@ -123,6 +126,7 @@ TEST(traits, move_assignment) {
   using variant5 = variant<int, short, char, dummy_t, bool>;
   using variant6 = variant<int, std::string, throwing_move_operator_t, double>;
   using variant7 = variant<int, throwing_move_assignment_t, double>;
+  using variant8 = variant<int, double, no_move_t>;
   ASSERT_FALSE(std::is_move_assignable_v<variant1>);
   ASSERT_FALSE(std::is_move_assignable_v<variant2>);
   ASSERT_TRUE(std::is_move_assignable_v<variant3>);
@@ -138,6 +142,7 @@ TEST(traits, move_assignment) {
   ASSERT_TRUE(std::is_nothrow_move_assignable_v<variant3>);
   ASSERT_TRUE(std::is_nothrow_move_assignable_v<variant4>);
   ASSERT_TRUE(std::is_nothrow_move_assignable_v<variant5>);
+  ASSERT_FALSE(std::is_move_assignable_v<variant8>);
 }
 
 TEST(traits, converting_assignment) {
@@ -205,7 +210,7 @@ static_assert(simple_copy_ctor_test(), "Basic constexpr copy-constructor failed"
 
 TEST(correctness, copy_ctor1) { ASSERT_TRUE(simple_copy_ctor_test()); }
 
-TEST(correcntess, copy_constructor_without_default) {
+TEST(correctness, copy_constructor_without_default) {
   variant<no_default_t, non_trivial_copy_t> orig(in_place_index<1>, 123);
   variant<no_default_t, non_trivial_copy_t> copy(orig);
   ASSERT_EQ(orig.index(), copy.index());
@@ -437,6 +442,58 @@ TEST(correctness, multiple_same_types) {
   ASSERT_THROW(get<1>(v), bad_variant_access);
 }
 
+TEST(correctness, overloaded_address) {
+  using V = variant<int, broken_address, std::string>;
+  {
+    V v(in_place_index<1>);
+    broken_address *ptr = get_if<1>(&v);
+    ASSERT_TRUE(ptr != nullptr);
+    ASSERT_TRUE(&*ptr == nullptr);
+
+    v = 42;
+    ptr = get_if<1>(&v);
+    ASSERT_TRUE(ptr == nullptr);
+
+    v = broken_address();
+    ptr = get_if<1>(&v);
+    ASSERT_TRUE(ptr != nullptr);
+    ASSERT_TRUE(&*ptr == nullptr);
+  }
+  {
+    V v = broken_address();
+    V w(v);
+    broken_address *ptr = get_if<1>(&w);
+    ASSERT_TRUE(ptr != nullptr);
+    ASSERT_TRUE(&*ptr == nullptr);
+
+    w = 42;
+    w = v;
+    ptr = get_if<1>(&w);
+    ASSERT_TRUE(ptr != nullptr);
+    ASSERT_TRUE(&*ptr == nullptr);
+  }
+  {
+    V v(in_place_type<broken_address>);
+    auto w = V(in_place_index<1>);
+    broken_address *ptr = get_if<1>(&w);
+    ASSERT_TRUE(ptr != nullptr);
+    ASSERT_TRUE(&*ptr == nullptr);
+
+    w = 42;
+    w = std::move(v);
+    ptr = get_if<1>(&w);
+    ASSERT_TRUE(ptr != nullptr);
+    ASSERT_TRUE(&*ptr == nullptr);
+  }
+  {
+    V v = 42;
+    v.emplace<broken_address>(broken_address());
+    broken_address *ptr = get_if<1>(&v);
+    ASSERT_TRUE(ptr != nullptr);
+    ASSERT_TRUE(&*ptr == nullptr);
+  }
+}
+
 TEST(visits, visit_valueless) {
   variant<throwing_move_operator_t> x;
   try {
@@ -491,6 +548,31 @@ constexpr bool test_visit() {
 }
 
 static_assert(test_visit(), "Visit is not constexpr");
+
+TEST(visits, visit_visitor_forwarding) {
+  variant<int> var = 322;
+  strange_visitor vis;
+  int val1 = visit(vis, var);
+  ASSERT_EQ(val1, 322);
+  int val2 = visit(strange_visitor(), var);
+  ASSERT_EQ(val2, 323);
+  int val3 = visit(std::as_const(vis), var);
+  ASSERT_EQ(val3, 324);
+  int val4 = visit(std::move(std::as_const(vis)), var);
+  ASSERT_EQ(val4, 325);
+}
+
+TEST(visits, visit_args_forwarding) {
+  variant<only_movable> var;
+  int val1 = visit([](only_movable const &) { return 322; }, var);
+  ASSERT_EQ(val1, 322);
+  int val2 = visit([](only_movable&) { return 322; }, var);
+  ASSERT_EQ(val2, 322);
+  int val3 = visit([](only_movable const&&) { return 322; }, std::move(std::as_const(var)));
+  ASSERT_EQ(val3, 322);
+  int val4 = visit([](only_movable&&) { return 322; }, std::move(var));
+  ASSERT_EQ(val4, 322);
+}
 
 TEST(swap, valueless) {
   throwing_move_operator_t::swap_called = 0;
@@ -582,4 +664,77 @@ TEST(constructor, move_only) {
   V b(std::move(a));
   ASSERT_TRUE(get<0>(b).has_coin());
   ASSERT_FALSE(get<0>(a).has_coin());
+}
+
+template <class Var>
+constexpr bool test_equal(const Var &l, const Var &r, bool expect_equal) {
+  return ((l == r) == expect_equal) && (!(l != r) == expect_equal) &&
+      ((r == l) == expect_equal) && (!(r != l) == expect_equal);
+}
+
+TEST(relops, equality) {
+  using V = variant<non_trivial_int_wrapper_t, int, std::string>;
+  {
+    V v1(in_place_index<0>, 42);
+    V v2(in_place_index<0>, 42);
+    ASSERT_TRUE(test_equal(v1, v2, true));
+  }
+  {
+    V v1(in_place_index<0>, 42);
+    V v2(in_place_index<0>, 43);
+    ASSERT_TRUE(test_equal(v1, v2, false));
+  }
+  {
+    V v1(in_place_index<0>, 42);
+    V v2(in_place_index<1>, 42);
+    ASSERT_TRUE(test_equal(v1, v2, false));
+  }
+}
+
+template <class Var>
+constexpr bool test_less(const Var &l, const Var &r, bool expect_less, bool expect_greater) {
+  return ((l < r) == expect_less) && (!(l >= r) == expect_less) &&
+      ((l > r) == expect_greater) && (!(l <= r) == expect_greater);
+}
+
+TEST(relops, relational_basic) {
+  using V = variant<non_trivial_int_wrapper_t, int, std::string>;
+  {
+    V v1(in_place_index<0>, 42);
+    V v2(in_place_index<0>, 42);
+    ASSERT_TRUE(test_less(v1, v2, false, false));
+    ASSERT_TRUE(test_less(v2, v1, false, false));
+  }
+  {
+    V v1(in_place_index<0>, 42);
+    V v2(in_place_index<0>, 43);
+    ASSERT_TRUE(test_less(v1, v2, true, false));
+    ASSERT_TRUE(test_less(v2, v1, false, true));
+  }
+  {
+    V v1(in_place_index<0>, 43);
+    V v2(in_place_index<1>, 42);
+    ASSERT_TRUE(test_less(v1, v2, true, false));
+    ASSERT_TRUE(test_less(v2, v1, false, true));
+  }
+}
+
+TEST(relops, relational_empty) {
+  using V = variant<int, empty_comparable, std::string>;
+  {
+    V v1, v2;
+    ASSERT_ANY_THROW(v2 = V(in_place_type<empty_comparable>));
+    ASSERT_TRUE(v2.valueless_by_exception());
+    ASSERT_TRUE(test_less(v1, v2, false, true));
+    ASSERT_TRUE(test_less(v2, v1, true, false));
+  }
+  {
+    V v1, v2;
+    ASSERT_ANY_THROW(v1 = V(in_place_type<empty_comparable>));
+    ASSERT_TRUE(v1.valueless_by_exception());
+    ASSERT_ANY_THROW(v2 = V(in_place_type<empty_comparable>));
+    ASSERT_TRUE(v2.valueless_by_exception());
+    ASSERT_TRUE(test_less(v1, v2, false, false));
+    ASSERT_TRUE(test_less(v2, v1, false, false));
+  }
 }
