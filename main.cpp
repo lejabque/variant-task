@@ -105,6 +105,7 @@ TEST(traits, copy_assignment) {
   using variant3 = variant<dummy_t, int, non_trivial_copy_assignment_t>;
   using variant4 = variant<double, non_trivial_copy_t, bool>;
   using variant5 = variant<int, short, char, dummy_t, bool>;
+  using variant6 = variant<int, double, no_copy_t>;
   ASSERT_FALSE(std::is_copy_assignable_v<variant1>);
   ASSERT_FALSE(std::is_copy_assignable_v<variant2>);
   ASSERT_TRUE(std::is_copy_assignable_v<variant3>);
@@ -113,6 +114,7 @@ TEST(traits, copy_assignment) {
   ASSERT_FALSE(std::is_trivially_copy_assignable_v<variant3>);
   ASSERT_FALSE(std::is_trivially_copy_assignable_v<variant4>);
   ASSERT_TRUE(std::is_trivially_copy_assignable_v<variant5>);
+  ASSERT_FALSE(std::is_copy_assignable_v<variant6>);
 }
 
 TEST(traits, move_assignment) {
@@ -123,6 +125,7 @@ TEST(traits, move_assignment) {
   using variant5 = variant<int, short, char, dummy_t, bool>;
   using variant6 = variant<int, std::string, throwing_move_operator_t, double>;
   using variant7 = variant<int, throwing_move_assignment_t, double>;
+  using variant8 = variant<int, double, no_move_t>;
   ASSERT_FALSE(std::is_move_assignable_v<variant1>);
   ASSERT_FALSE(std::is_move_assignable_v<variant2>);
   ASSERT_TRUE(std::is_move_assignable_v<variant3>);
@@ -138,6 +141,7 @@ TEST(traits, move_assignment) {
   ASSERT_TRUE(std::is_nothrow_move_assignable_v<variant3>);
   ASSERT_TRUE(std::is_nothrow_move_assignable_v<variant4>);
   ASSERT_TRUE(std::is_nothrow_move_assignable_v<variant5>);
+  ASSERT_FALSE(std::is_move_assignable_v<variant8>);
 }
 
 TEST(traits, converting_assignment) {
